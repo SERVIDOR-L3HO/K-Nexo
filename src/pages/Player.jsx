@@ -50,12 +50,10 @@ export default function Player() {
     ? servers
     : servers.filter(s => s.lang === langFilter)
 
-  // Always proxy through our server so video hosts see Referer: tudorama.com
-  // directSrc is the actual embed URL (earnvids, filemoon, etc.) — proxy that directly
-  const proxyTarget = active?.directSrc || active?.playerUrl
-  const iframeSrc = proxyTarget
-    ? `/api/player-proxy?url=${encodeURIComponent(proxyTarget)}`
-    : null
+  // Use playerUrl directly (cdn.tudorama.com/player/server-X.php)
+  // When that page loads in our iframe, its JS sets the inner iframe src to the video host
+  // The inner iframe request has Referer: cdn.tudorama.com — which IS whitelisted
+  const iframeSrc = active?.playerUrl || null
 
   return (
     <div className="h-screen bg-black flex flex-col overflow-hidden">
