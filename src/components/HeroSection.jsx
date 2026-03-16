@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getThumbnail } from '../api/dailymotion'
+import { proxyImg } from '../api/tudorama'
 
-export default function HeroSection({ videos = [] }) {
+export default function HeroSection({ items = [] }) {
   const [current, setCurrent] = useState(0)
   const navigate = useNavigate()
-  const featured = videos.slice(0, 6)
+  const featured = items.slice(0, 6)
 
   useEffect(() => {
     if (featured.length < 2) return
@@ -15,55 +15,59 @@ export default function HeroSection({ videos = [] }) {
 
   if (!featured.length) return <HeroSkeleton />
 
-  const video = featured[current]
-  const thumb = getThumbnail(video)
+  const item = featured[current]
+  const bg = item.backdrop || item.poster
 
   return (
-    <div className="relative h-[70vh] min-h-[480px] max-h-[700px] overflow-hidden">
+    <div className="relative h-[72vh] min-h-[500px] max-h-[720px] overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0">
-        {thumb && (
-          <img key={video.id} src={thumb} alt="" className="w-full h-full object-cover animate-fade-in" />
+        {bg && (
+          <img key={item.id} src={proxyImg(bg)} alt="" className="w-full h-full object-cover animate-fade-in" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/75 to-dark-900/30" />
-        <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-transparent to-dark-900/30" />
+        <div className="absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/80 to-dark-900/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-transparent to-dark-900/40" />
       </div>
 
       {/* Content */}
-      <div className="relative z-10 h-full flex flex-col justify-end px-6 sm:px-10 pb-14 max-w-2xl">
+      <div className="relative z-10 h-full flex flex-col justify-end pb-16 px-6 sm:px-12 max-w-2xl">
         <div className="animate-slide-up">
           {/* Tags */}
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-bold px-3 py-1 rounded-full bg-brand-primary text-white uppercase tracking-widest">
-              ⭐ Destacado
-            </span>
-            <span className="text-xs font-semibold text-white/60">K-Drama</span>
+          <div className="flex items-center flex-wrap gap-2 mb-3">
+            {item.genres?.slice(0, 2).map(g => (
+              <span key={g} className="text-xs font-semibold px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/15 text-white/80">
+                {g}
+              </span>
+            ))}
+            {item.year && (
+              <span className="text-xs font-semibold text-white/50">{item.year}</span>
+            )}
           </div>
 
           {/* Title */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight mb-3 drop-shadow-xl">
-            {video.title?.length > 65 ? video.title.slice(0, 65) + '…' : video.title}
+            {item.title?.length > 55 ? item.title.slice(0, 55) + '…' : item.title}
           </h1>
 
-          {/* Description */}
-          {video.description && (
-            <p className="text-white/65 text-sm sm:text-base mb-5 max-w-lg line-clamp-2 leading-relaxed">
-              {video.description}
+          {/* Synopsis */}
+          {item.excerpt && (
+            <p className="text-white/60 text-sm sm:text-base mb-5 max-w-lg leading-relaxed line-clamp-2">
+              {item.excerpt}
             </p>
           )}
 
           {/* Actions */}
           <div className="flex flex-wrap gap-3">
             <button
-              onClick={() => navigate(`/watch/${video.id}`)}
-              className="flex items-center gap-2 bg-white text-dark-900 font-bold px-6 py-2.5 rounded-xl hover:bg-white/90 transition-all text-sm"
+              onClick={() => navigate(item.type === 'movie' ? `/pelicula/${item.slug}` : `/serie/${item.slug}`)}
+              className="flex items-center gap-2 bg-white text-dark-900 font-bold px-6 py-2.5 rounded-xl hover:bg-white/90 transition-all text-sm shadow-lg"
             >
               <PlayIcon />
               Ver Ahora
             </button>
             <button
-              onClick={() => navigate(`/watch/${video.id}`)}
-              className="flex items-center gap-2 bg-white/15 backdrop-blur-sm text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-white/25 transition-all border border-white/20 text-sm"
+              onClick={() => navigate(item.type === 'movie' ? `/pelicula/${item.slug}` : `/serie/${item.slug}`)}
+              className="flex items-center gap-2 bg-white/12 backdrop-blur-sm text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-white/22 transition-all border border-white/20 text-sm"
             >
               <InfoIcon />
               Más Info
@@ -72,29 +76,29 @@ export default function HeroSection({ videos = [] }) {
         </div>
       </div>
 
-      {/* Progress dots */}
+      {/* Dots */}
       {featured.length > 1 && (
-        <div className="absolute bottom-5 left-6 sm:left-10 flex gap-2 z-10">
+        <div className="absolute bottom-5 left-6 sm:left-12 flex gap-2 z-10">
           {featured.map((_, i) => (
             <button
               key={i}
               onClick={() => setCurrent(i)}
-              className={`h-1 rounded-full transition-all duration-500 ${i === current ? 'bg-white w-8' : 'bg-white/30 w-4 hover:bg-white/50'}`}
+              className={`h-1 rounded-full transition-all duration-500 ${i === current ? 'bg-white w-8' : 'bg-white/25 w-4 hover:bg-white/50'}`}
             />
           ))}
         </div>
       )}
 
-      {/* Side thumbnails (desktop) */}
+      {/* Side poster stack (desktop) */}
       {featured.length > 1 && (
-        <div className="absolute right-6 sm:right-10 bottom-10 hidden xl:flex flex-col gap-2 z-10">
+        <div className="absolute right-8 bottom-12 hidden xl:flex flex-col gap-2 z-10">
           {featured.map((v, i) => (
             <button
               key={v.id}
               onClick={() => setCurrent(i)}
-              className={`w-16 h-24 rounded-lg overflow-hidden border-2 transition-all duration-300 ${i === current ? 'border-white scale-105' : 'border-transparent opacity-40 hover:opacity-70'}`}
+              className={`w-14 h-20 rounded-lg overflow-hidden border-2 transition-all duration-300 ${i === current ? 'border-white scale-105 opacity-100' : 'border-transparent opacity-35 hover:opacity-60'}`}
             >
-              <img src={getThumbnail(v)} alt="" className="w-full h-full object-cover" />
+              <img src={proxyImg(v.poster || v.backdrop)} alt="" className="w-full h-full object-cover" />
             </button>
           ))}
         </div>
@@ -105,17 +109,20 @@ export default function HeroSection({ videos = [] }) {
 
 function HeroSkeleton() {
   return (
-    <div className="relative h-[70vh] min-h-[480px] max-h-[700px] bg-dark-800">
-      <div className="absolute inset-0 skeleton opacity-40" />
-      <div className="relative z-10 h-full flex flex-col justify-end px-10 pb-14">
-        <div className="h-5 w-24 skeleton rounded-full mb-3" />
-        <div className="h-10 w-2/3 skeleton rounded-xl mb-2" />
-        <div className="h-10 w-1/2 skeleton rounded-xl mb-5" />
+    <div className="relative h-[72vh] min-h-[500px] max-h-[720px] bg-dark-800">
+      <div className="absolute inset-0 skeleton opacity-30" />
+      <div className="relative z-10 h-full flex flex-col justify-end pb-16 px-12">
+        <div className="flex gap-2 mb-3">
+          <div className="h-6 w-20 skeleton rounded-full" />
+          <div className="h-6 w-16 skeleton rounded-full" />
+        </div>
+        <div className="h-12 w-2/3 skeleton rounded-xl mb-2" />
+        <div className="h-12 w-1/2 skeleton rounded-xl mb-5" />
         <div className="h-4 w-3/5 skeleton rounded mb-2" />
         <div className="h-4 w-2/5 skeleton rounded mb-5" />
         <div className="flex gap-3">
           <div className="h-11 w-32 skeleton rounded-xl" />
-          <div className="h-11 w-32 skeleton rounded-xl" />
+          <div className="h-11 w-36 skeleton rounded-xl" />
         </div>
       </div>
     </div>

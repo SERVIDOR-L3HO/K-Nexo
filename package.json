@@ -1,14 +1,17 @@
 {
-  "name": "dramastream",
+  "name": "tudorama",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5000 --host",
+    "dev": "concurrently \"node server.js\" \"vite --port 5000 --host\"",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@types/node": "^22.13.11",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.4.0"
@@ -16,6 +19,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.2",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "vite": "^6.2.3"

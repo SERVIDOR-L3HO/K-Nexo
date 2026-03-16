@@ -36,10 +36,11 @@ export default function Navbar() {
   }
 
   const seriesLinks = [
-    { to: '/browse?cat=kdrama', label: '🇰🇷 K-Dramas' },
-    { to: '/browse?cat=cdrama', label: '🇨🇳 C-Dramas' },
-    { to: '/browse?cat=jdrama', label: '🇯🇵 J-Dramas' },
-    { to: '/browse?cat=reality', label: '📺 Reality Shows' },
+    { to: '/browse?type=series', label: '🌸 Todas las Series' },
+    { to: '/browse?type=series&genre=drama', label: '🇰🇷 K-Dramas' },
+    { to: '/browse?type=series&genre=cdrama', label: '🇨🇳 C-Dramas' },
+    { to: '/browse?type=series&genre=jdrama', label: '🇯🇵 J-Dramas' },
+    { to: '/browse?type=series&genre=reality', label: '📺 Reality Shows' },
   ]
 
   return (
@@ -59,7 +60,7 @@ export default function Navbar() {
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-1">
           <NavLink to="/" label="Inicio" location={location} />
-          <NavLink to="/browse?cat=kdrama" label="En Emisión" location={location} />
+          <NavLink to="/browse?type=series" label="En Emisión" location={location} />
 
           {/* Series Dropdown */}
           <div className="relative" onMouseEnter={() => setSeriesOpen(true)} onMouseLeave={() => setSeriesOpen(false)}>
@@ -78,9 +79,9 @@ export default function Navbar() {
             )}
           </div>
 
-          <NavLink to="/browse?cat=peliculas" label="Películas" location={location} />
-          <NavLink to="/browse?cat=latino" label="Latino" location={location} />
-          <NavLink to="/browse?cat=subtitulado" label="Subtitulado" location={location} />
+          <NavLink to="/browse?type=movies" label="Películas" location={location} />
+          <NavLink to="/browse?type=series&genre=romance" label="Romance" location={location} />
+          <NavLink to="/browse?type=series&genre=comedia" label="Comedia" location={location} />
         </nav>
 
         {/* Right */}
@@ -115,13 +116,13 @@ export default function Navbar() {
         <div className="md:hidden bg-dark-800/98 backdrop-blur-xl border-t border-white/8 animate-fade-in">
           <div className="py-2">
             <MobileLink to="/" label="🏠 Inicio" />
-            <MobileLink to="/browse?cat=kdrama" label="📡 En Emisión" />
+            <MobileLink to="/browse?type=series" label="📡 En Emisión" />
             <div className="px-4 pt-3 pb-1 text-xs font-semibold text-white/30 uppercase tracking-wider">Series</div>
             {seriesLinks.map(l => <MobileLink key={l.to} to={l.to} label={l.label} />)}
             <div className="border-t border-white/8 mt-2 pt-2">
-              <MobileLink to="/browse?cat=peliculas" label="🎬 Películas" />
-              <MobileLink to="/browse?cat=latino" label="🎙️ Español Latino" />
-              <MobileLink to="/browse?cat=subtitulado" label="💬 Subtitulado" />
+              <MobileLink to="/browse?type=movies" label="🎬 Películas" />
+              <MobileLink to="/browse?type=series&genre=romance" label="💕 Romance" />
+              <MobileLink to="/browse?type=series&genre=comedia" label="😄 Comedia" />
             </div>
           </div>
         </div>
