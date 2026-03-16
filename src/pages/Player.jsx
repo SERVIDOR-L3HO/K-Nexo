@@ -50,10 +50,19 @@ export default function Player() {
     ? servers
     : servers.filter(s => s.lang === langFilter)
 
-  // Use playerUrl directly (cdn.tudorama.com/player/server-X.php)
-  // When that page loads in our iframe, its JS sets the inner iframe src to the video host
-  // The inner iframe request has Referer: cdn.tudorama.com — which IS whitelisted
-  const iframeSrc = active?.playerUrl || null
+  // Smart routing by server type:
+  // - 4meplayer: embed directSrc directly (no domain restriction)
+  // - abysscdn: not embeddable (X-Frame-Options sameorigin) → show fallback
+  // - others (earnvids, streamhg, filemoon): proxy directSrc with Referer: tudorama.com
+  const iframeSrc = (() => {
+    if (!active) return null
+    const { directSrc, playerUrl, name } = active
+    const n = (name || '').toLowerCase()
+    if (directSrc?.includes('4meplayer')) return directSrc
+    if (directSrc?.includes('abysscdn.com')) return null
+    if (directSrc) return `/api/player-proxy?url=${encodeURIComponent(directSrc)}`
+    return null
+  })()
 
   return (
     <div className="h-screen bg-black flex flex-col overflow-hidden">
@@ -96,6 +105,15 @@ export default function Player() {
             <div className="text-4xl">⚠️</div>
             <p className="text-white/60 text-sm mb-1">No se pudieron cargar los servidores.</p>
             <a href={epLink} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm">
+              Ver en TuDorama.com ↗
+            </a>
+          </div>
+        ) : !iframeSrc && active?.directSrc?.includes('abysscdn.com') ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
+            <div className="text-4xl">🔒</div>
+            <p className="text-white/60 text-sm">Este servidor no permite reproducción integrada.</p>
+            <a href={epLink} target="_blank" rel="noopener noreferrer"
+              className="bg-white text-dark-900 font-bold px-5 py-2.5 rounded-xl text-sm hover:bg-white/90 transition-colors">
               Ver en TuDorama.com ↗
             </a>
           </div>

@@ -459,14 +459,15 @@ app.get('/api/player-proxy', async (req, res) => {
       .replace(/(\saction=")\/(?!\/)/g, `$1${origin}/`)
       .replace(/(url\(["']?)\/(?!\/)/g, `$1${origin}/`)
 
-    // Inject script BEFORE anything else to spoof document.referrer
-    // and suppress domain-check errors before player JS runs
+    // Inject script BEFORE anything else:
+    // 1. Spoof document.referrer for client-side domain checks
+    // 2. Auto-click "Cargar Reproductor" button (StreamHG/EarnVids)
+    // 3. Force JWPlayer autostart so video plays without extra click
     const spoof = `<script>
 (function(){
   try {
     Object.defineProperty(document,'referrer',{get:function(){return'https://tudorama.com/'},configurable:true});
   } catch(e){}
-  // Patch window.location for players that read it
   try {
     var _open = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(m,u){
@@ -474,6 +475,21 @@ app.get('/api/player-proxy', async (req, res) => {
       return _open.apply(this,arguments);
     };
   } catch(e){}
+  // Auto-click "Cargar Reproductor" when it appears (StreamHG, EarnVids)
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('loadIframeButton');
+    if(btn) btn.click();
+    // JWPlayer: force autostart after setup
+    if(typeof jwplayer !== 'undefined'){
+      var _setup = jwplayer().setup;
+      if(_setup) jwplayer().setup = function(cfg){ return _setup.call(this, Object.assign({}, cfg, {autostart:true})); };
+    }
+    setTimeout(function(){
+      var btn2 = document.getElementById('loadIframeButton');
+      if(btn2) btn2.click();
+      try { if(jwplayer) jwplayer().play(); } catch(e){}
+    }, 1500);
+  });
 })();
 </script>`
 
