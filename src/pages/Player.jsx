@@ -50,11 +50,11 @@ export default function Player() {
     ? servers
     : servers.filter(s => s.lang === langFilter)
 
-  // For embeddable servers use directSrc; for abyss/blocked use player-proxy as best-effort
-  const iframeSrc = active
-    ? (active.embeddable !== false && active.directSrc
-        ? active.directSrc
-        : `/api/player-proxy?url=${encodeURIComponent(active.playerUrl)}`)
+  // Always proxy through our server so video hosts see Referer: tudorama.com
+  // directSrc is the actual embed URL (earnvids, filemoon, etc.) — proxy that directly
+  const proxyTarget = active?.directSrc || active?.playerUrl
+  const iframeSrc = proxyTarget
+    ? `/api/player-proxy?url=${encodeURIComponent(proxyTarget)}`
     : null
 
   return (
@@ -174,9 +174,6 @@ export default function Player() {
                       }`}>
                         {langBadge}
                       </span>
-                      {s.embeddable === false && (
-                        <span className="text-[10px] text-amber-400/70">⚠</span>
-                      )}
                     </button>
                   )
                 })}

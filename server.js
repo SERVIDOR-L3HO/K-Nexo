@@ -418,21 +418,78 @@ app.get('/api/episode-players/:episodePostId', async (req, res) => {
 })
 
 /* GET /api/player-proxy?url=...
-   Proxies a cdn.tudorama.com player page (with correct Referer) */
+   Proxies any video player page through our server:
+   - Fetches with Referer: tudorama.com so hosts think it's an authorized embed
+   - Injects script to spoof document.referrer for client-side domain checks
+   - Rewrites relative URLs to absolute, removes X-Frame-Options/CSP */
 app.get('/api/player-proxy', async (req, res) => {
   const { url } = req.query
-  if (!url || !url.startsWith('https://cdn.tudorama.com/')) {
-    return res.status(400).send('Invalid URL')
-  }
+  if (!url) return res.status(400).send('URL required')
+
+  let parsedUrl
+  try { parsedUrl = new URL(url) } catch { return res.status(400).send('Invalid URL') }
+
   try {
-    const html = await fetchHtml(url)
-    // Rewrite asset paths to absolute cdn.tudorama.com URLs
-    const rewritten = html
-      .replace(/src="\/assets\//g, 'src="https://cdn.tudorama.com/assets/')
-      .replace(/href="\/assets\//g, 'href="https://cdn.tudorama.com/assets/')
+    const upstream = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0',
+        'Referer': 'https://tudorama.com/',
+        'Origin': 'https://tudorama.com',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
+      }
+    })
+
+    const contentType = upstream.headers.get('content-type') || 'text/html'
+
+    if (!contentType.includes('text/html')) {
+      const buf = await upstream.arrayBuffer()
+      res.setHeader('Content-Type', contentType)
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      return res.send(Buffer.from(buf))
+    }
+
+    let html = await upstream.text()
+    const origin = `${parsedUrl.protocol}//${parsedUrl.host}`
+
+    // Rewrite root-relative URLs to absolute (keeps assets loading correctly)
+    html = html
+      .replace(/(\ssrc=")\/(?!\/)/g, `$1${origin}/`)
+      .replace(/(\shref=")\/(?!\/)/g, `$1${origin}/`)
+      .replace(/(\saction=")\/(?!\/)/g, `$1${origin}/`)
+      .replace(/(url\(["']?)\/(?!\/)/g, `$1${origin}/`)
+
+    // Inject script BEFORE anything else to spoof document.referrer
+    // and suppress domain-check errors before player JS runs
+    const spoof = `<script>
+(function(){
+  try {
+    Object.defineProperty(document,'referrer',{get:function(){return'https://tudorama.com/'},configurable:true});
+  } catch(e){}
+  // Patch window.location for players that read it
+  try {
+    var _open = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(m,u){
+      if(typeof u==='string' && u.includes('domain') && u.includes('check')) return;
+      return _open.apply(this,arguments);
+    };
+  } catch(e){}
+})();
+</script>`
+
+    if (html.includes('<head>')) {
+      html = html.replace('<head>', '<head>' + spoof)
+    } else if (html.includes('<html>')) {
+      html = html.replace('<html>', '<html>' + spoof)
+    } else {
+      html = spoof + html
+    }
+
     res.setHeader('Content-Type', 'text/html; charset=UTF-8')
     res.setHeader('X-Frame-Options', 'ALLOWALL')
-    res.send(rewritten)
+    res.removeHeader('Content-Security-Policy')
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.send(html)
   } catch (e) {
     res.status(500).send('Proxy error: ' + e.message)
   }
