@@ -17,11 +17,20 @@ app.use(express.json())
 const GQL_URL = 'https://sv1.fluxcedene.net/api/gql'
 const GQL_HEADERS = {
   'Content-Type': 'application/json',
+  'Accept': 'application/json, */*',
+  'Accept-Language': 'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7',
   'platform': 'doramasflix',
   'x-access-platform': 'doramasgo',
   'Referer': 'https://doramasflix.in/',
   'Origin': 'https://doramasflix.in',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"Windows"',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-site',
+  'Connection': 'keep-alive',
 }
 
 async function gql(query, variables = {}) {
@@ -30,7 +39,14 @@ async function gql(query, variables = {}) {
     headers: GQL_HEADERS,
     body: JSON.stringify({ query, variables }),
   })
-  const json = await res.json()
+
+  const text = await res.text()
+
+  if (text.trim().startsWith('<')) {
+    throw new Error(`API_BLOCKED: La API externa bloqueó la solicitud (HTTP ${res.status}). Esto ocurre cuando el servidor de hosting está en una lista de bloqueo.`)
+  }
+
+  const json = JSON.parse(text)
   if (json.errors?.length) throw new Error(json.errors[0].message)
   return json.data
 }
