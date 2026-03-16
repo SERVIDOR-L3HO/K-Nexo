@@ -12,15 +12,18 @@ function Footer() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xl">🌸</span>
-              <span className="text-lg font-bold text-white">Tu<span className="text-gradient">Dorama</span></span>
+              <img src="/knexo-logo.png" alt="K-Nexo" className="h-8 w-auto" />
             </div>
             <p className="text-white/30 text-xs">Doramas online gratis — K-Dramas, C-Dramas, J-Dramas en Español.</p>
           </div>
-          <div className="flex flex-wrap justify-center gap-4 text-xs text-white/25">
-            <span>Contenido de TuDorama.com</span>
-            <span>•</span>
-            <span>© 2026 TuDorama</span>
+          <div className="flex flex-col items-center sm:items-end gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-white/30 text-xs">Hecho por</span>
+              <img src="/l3ho-logo.png" alt="L3HO Interactive" className="h-7 w-auto opacity-70 hover:opacity-100 transition-opacity" />
+            </div>
+            <div className="flex flex-wrap justify-center gap-4 text-xs text-white/25">
+              <span>© 2026 K-Nexo</span>
+            </div>
           </div>
         </div>
       </div>
