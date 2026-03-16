@@ -2,6 +2,8 @@ const API = '/api'
 
 export function proxyImg(url) {
   if (!url) return ''
+  // TMDB images are public — no proxy needed
+  if (url.includes('image.tmdb.org')) return url
   return `/api/img?url=${encodeURIComponent(url)}`
 }
 
@@ -17,12 +19,12 @@ async function get(path) {
 }
 
 export async function getSeries(params = {}) {
-  const q = new URLSearchParams({ per_page: 20, ...params }).toString()
+  const q = new URLSearchParams({ per_page: 24, ...params }).toString()
   return await get(`/series?${q}`) || []
 }
 
 export async function getMovies(params = {}) {
-  const q = new URLSearchParams({ per_page: 20, ...params }).toString()
+  const q = new URLSearchParams({ per_page: 24, ...params }).toString()
   return await get(`/movies?${q}`) || []
 }
 
@@ -34,11 +36,13 @@ export async function getMovieDetail(slug) {
   return await get(`/movie/${slug}`)
 }
 
-export async function getEpisodes(serieId, serieSlug, serieLink) {
-  const q = new URLSearchParams()
-  if (serieSlug) q.set('serieSlug', serieSlug)
-  if (serieLink) q.set('serieLink', serieLink)
-  return await get(`/episodes/${serieId}?${q.toString()}`) || []
+// serieId is now the MongoDB _id (from the new GraphQL API)
+export async function getEpisodes(serieId) {
+  return await get(`/episodes/${serieId}`) || []
+}
+
+export async function getEpisodeLinks(episodeId) {
+  return await get(`/episode-links/${episodeId}`) || []
 }
 
 export async function getGenres() {
@@ -50,15 +54,14 @@ export async function search(query) {
 }
 
 export async function getHome() {
-  const [recientes, populares, movies] = await Promise.all([
-    getSeries({ per_page: 15, orderby: 'date', order: 'desc' }),
-    getSeries({ per_page: 15, orderby: 'modified', order: 'desc' }),
-    getMovies({ per_page: 15 }),
+  const [recientes, populares] = await Promise.all([
+    getSeries({ per_page: 15 }),
+    getSeries({ per_page: 15 }),
   ])
-  return { recientes, populares, movies }
+  return { recientes, populares, movies: [] }
 }
 
-export async function getByGenre(genreId, type = 'series') {
-  if (type === 'movie') return getMovies({ genre: genreId, per_page: 24 })
-  return getSeries({ genre: genreId, per_page: 24 })
+export async function getByGenre(genreSlug, type = 'series') {
+  if (type === 'movie') return getMovies({ per_page: 24 })
+  return getSeries({ per_page: 24 })
 }

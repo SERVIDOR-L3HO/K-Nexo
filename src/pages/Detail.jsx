@@ -26,7 +26,7 @@ export default function Detail({ type = 'serie' }) {
       if (detail) {
         if (!isMovie) {
           setEpLoading(true)
-          const eps = await getEpisodes(detail.id, detail.slug, detail.link)
+          const eps = await getEpisodes(detail.id)
           setEpisodes(eps)
           setEpLoading(false)
         }
@@ -97,7 +97,6 @@ export default function Detail({ type = 'serie' }) {
                   const ep = episodes[0]
                   const q = new URLSearchParams({
                     id: ep.id,
-                    link: ep.link,
                     title: ep.title,
                     serieTitle: item.title,
                     serieSlug: slug,
@@ -109,17 +108,6 @@ export default function Detail({ type = 'serie' }) {
                 <PlayIcon />
                 Ver Episodio 1
               </button>
-            )}
-            {isMovie && item.link && (
-              <a
-                href={item.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-white text-dark-900 font-bold px-6 py-2.5 rounded-xl hover:bg-white/90 transition-all text-sm shadow-lg"
-              >
-                <PlayIcon />
-                Ver Película
-              </a>
             )}
           </div>
         </div>
@@ -143,7 +131,6 @@ export default function Detail({ type = 'serie' }) {
                 {episodes.map((ep, i) => {
                   const q = new URLSearchParams({
                     id: ep.id,
-                    link: ep.link,
                     title: ep.title,
                     serieTitle: item.title,
                     serieSlug: slug,

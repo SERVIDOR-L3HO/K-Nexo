@@ -1,16 +1,25 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
+import { getEpisodeLinks } from '../api/tudorama'
 
-const LANG_LABELS = { en: 'SUB', es: 'LAT', pro: 'PRONTO' }
+const LANG_LABELS = {
+  ko: 'SUB KO',
+  es: 'LAT',
+  en: 'SUB EN',
+  zh: 'SUB ZH',
+}
 
-function cleanName(rawName) {
-  return rawName?.split(':').pop()?.replace(/-/g, '') || '?'
+function getLangLabel(code) {
+  return LANG_LABELS[code] || (code ? code.toUpperCase() : 'SUB')
+}
+
+function isLatino(code) {
+  return code === 'es'
 }
 
 export default function Player() {
   const [params] = useSearchParams()
   const episodeId = params.get('id')
-  const epLink = params.get('link')
   const title = params.get('title') || 'Episodio'
   const serieTitle = params.get('serieTitle') || ''
   const serieSlug = params.get('serieSlug') || ''
@@ -20,23 +29,24 @@ export default function Player() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [langFilter, setLangFilter] = useState('all')
+  const [iframeError, setIframeError] = useState(false)
+  const [useProxy, setUseProxy] = useState(false)
 
   useEffect(() => {
-    if (!episodeId || !epLink) return
+    if (!episodeId) return
     setLoading(true)
     setError(null)
     setServers([])
     setActive(null)
+    setIframeError(false)
+    setUseProxy(false)
 
-    fetch(`/api/episode-players/${episodeId}?epLink=${encodeURIComponent(epLink)}`)
-      .then(r => r.json())
+    getEpisodeLinks(episodeId)
       .then(data => {
-        if (data.error) throw new Error(data.error)
+        if (!data || !data.length) throw new Error('Sin servidores disponibles')
         setServers(data)
-        // Prefer embeddable servers: first Latino, then any embeddable, then fallback
-        const first = data.find(s => s.lang === 'es' && s.embeddable !== false)
-          || data.find(s => s.embeddable !== false)
-          || data[0]
+        // Prefer Latino, then any available
+        const first = data.find(s => isLatino(s.languageCode)) || data[0]
         if (first) setActive(first)
         setLoading(false)
       })
@@ -44,25 +54,36 @@ export default function Player() {
         setError(e.message)
         setLoading(false)
       })
-  }, [episodeId, epLink])
+  }, [episodeId])
 
   const filtered = langFilter === 'all'
     ? servers
-    : servers.filter(s => s.lang === langFilter)
+    : servers.filter(s => (langFilter === 'es' ? isLatino(s.languageCode) : !isLatino(s.languageCode)))
 
-  // Smart routing by server type:
-  // - 4meplayer: embed directSrc directly (no domain restriction)
-  // - abysscdn: not embeddable (X-Frame-Options sameorigin) → show fallback
-  // - others (earnvids, streamhg, filemoon): proxy directSrc with Referer: tudorama.com
+  // Build iframe URL: try embed directly, fallback to proxy
   const iframeSrc = (() => {
     if (!active) return null
-    const { directSrc, playerUrl, name } = active
-    const n = (name || '').toLowerCase()
-    if (directSrc?.includes('4meplayer')) return directSrc
-    if (directSrc?.includes('abysscdn.com')) return null
-    if (directSrc) return `/api/player-proxy?url=${encodeURIComponent(directSrc)}`
-    return null
+    const src = active.embed || active.link
+    if (!src) return null
+    if (useProxy) return `/api/player-proxy?url=${encodeURIComponent(src)}`
+    return src
   })()
+
+  function handleServerClick(s) {
+    setActive(s)
+    setIframeError(false)
+    setUseProxy(false)
+  }
+
+  function handleIframeError() {
+    if (!useProxy) {
+      // First try via proxy
+      setUseProxy(true)
+      setIframeError(false)
+    } else {
+      setIframeError(true)
+    }
+  }
 
   return (
     <div className="h-screen bg-black flex flex-col overflow-hidden">
@@ -83,17 +104,9 @@ export default function Player() {
             <h1 className="text-white text-sm font-semibold truncate">{title}</h1>
           </div>
         </div>
-        <a
-          href={epLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 text-xs text-white/30 hover:text-white/70 transition-colors ml-3 hidden sm:block"
-        >
-          Ver en TuDorama ↗
-        </a>
       </div>
 
-      {/* Player area — flex-1 fills remaining height after top bar + servers panel */}
+      {/* Player area */}
       <div className="relative flex-1 bg-black min-h-0">
         {loading ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
@@ -103,19 +116,31 @@ export default function Player() {
         ) : error ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
             <div className="text-4xl">⚠️</div>
-            <p className="text-white/60 text-sm mb-1">No se pudieron cargar los servidores.</p>
-            <a href={epLink} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm">
-              Ver en TuDorama.com ↗
-            </a>
+            <p className="text-white/60 text-sm mb-1">{error}</p>
+            <Link to={serieSlug ? `/serie/${serieSlug}` : '/'} className="btn-primary text-sm">
+              Volver
+            </Link>
           </div>
-        ) : !iframeSrc && active?.directSrc?.includes('abysscdn.com') ? (
+        ) : iframeError ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
             <div className="text-4xl">🔒</div>
             <p className="text-white/60 text-sm">Este servidor no permite reproducción integrada.</p>
-            <a href={epLink} target="_blank" rel="noopener noreferrer"
-              className="bg-white text-dark-900 font-bold px-5 py-2.5 rounded-xl text-sm hover:bg-white/90 transition-colors">
-              Ver en TuDorama.com ↗
-            </a>
+            {active?.embed && (
+              <a
+                href={active.embed}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white text-dark-900 font-bold px-5 py-2.5 rounded-xl text-sm hover:bg-white/90 transition-colors"
+              >
+                Abrir en nueva pestaña ↗
+              </a>
+            )}
+            <button
+              onClick={() => { setIframeError(false); setUseProxy(false) }}
+              className="text-white/40 text-xs underline"
+            >
+              Probar otro servidor
+            </button>
           </div>
         ) : !iframeSrc ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
@@ -130,11 +155,12 @@ export default function Player() {
             allowFullScreen
             allow="autoplay; fullscreen; picture-in-picture"
             scrolling="no"
+            onError={handleIframeError}
           />
         )}
       </div>
 
-      {/* Servers panel — fixed height at bottom, always visible */}
+      {/* Servers panel */}
       <div className="shrink-0 bg-dark-900 border-t border-white/8 overflow-y-auto" style={{ maxHeight: '180px' }}>
         <div className="max-w-4xl mx-auto px-4 py-5">
 
@@ -148,33 +174,38 @@ export default function Player() {
 
           {!loading && servers.length > 0 && (
             <>
+              {/* Language filter */}
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 <span className="text-white/35 text-xs font-medium">Idioma:</span>
                 {[
                   { val: 'all', label: 'Todos' },
                   { val: 'es', label: '🇲🇽 Latino' },
-                  { val: 'en', label: '🇰🇷 Subtitulado' },
+                  { val: 'sub', label: '🇰🇷 Subtitulado' },
                 ].map(({ val, label }) => (
                   <button
                     key={val}
                     onClick={() => setLangFilter(val)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${langFilter === val ? 'bg-white text-dark-900' : 'bg-dark-700 text-white/50 hover:bg-dark-600 hover:text-white'}`}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                      langFilter === val
+                        ? 'bg-white text-dark-900'
+                        : 'bg-dark-700 text-white/50 hover:bg-dark-600 hover:text-white'
+                    }`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
 
+              {/* Server buttons */}
               <div className="flex flex-wrap gap-2">
-                {filtered.map((s, i) => {
-                  const isActive = active?.playerUrl === s.playerUrl
-                  const langBadge = LANG_LABELS[s.lang] || s.lang?.toUpperCase()
-                  const isLat = s.lang === 'es'
+                {filtered.map((s) => {
+                  const isActive = active?.id === s.id
+                  const langBadge = getLangLabel(s.languageCode)
+                  const lat = isLatino(s.languageCode)
                   return (
                     <button
-                      key={i}
-                      onClick={() => setActive(s)}
-                      title={s.embeddable === false ? 'Este servidor puede no cargar en el reproductor integrado' : ''}
+                      key={s.id}
+                      onClick={() => handleServerClick(s)}
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${
                         isActive
                           ? 'bg-white text-dark-900 border-white shadow-lg scale-[1.02]'
@@ -182,9 +213,9 @@ export default function Player() {
                       }`}
                     >
                       <ServerIcon active={isActive} />
-                      <span>{cleanName(s.name)}</span>
+                      <span>{s.name}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                        isLat
+                        lat
                           ? isActive ? 'bg-green-700 text-white' : 'bg-green-900/50 text-green-400'
                           : isActive ? 'bg-blue-700 text-white' : 'bg-blue-900/50 text-blue-300'
                       }`}>
@@ -202,22 +233,20 @@ export default function Player() {
               )}
 
               <p className="text-white/20 text-xs mt-5">
-                Si un servidor no carga, prueba con otro. Los videos son servidos directamente desde los servidores de TuDorama.com.
+                Si un servidor no carga, prueba con otro. Los videos son servidos por doramasflix.in.
               </p>
             </>
           )}
 
           {!loading && servers.length === 0 && !error && (
-            <div className="text-center py-10">
+            <div className="text-center py-8">
               <p className="text-white/40 text-sm mb-4">No se encontraron servidores para este episodio.</p>
-              <a
-                href={epLink}
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                to={serieSlug ? `/serie/${serieSlug}` : '/'}
                 className="inline-flex items-center gap-2 bg-white text-dark-900 font-bold px-5 py-2.5 rounded-xl text-sm"
               >
-                Ver directamente en TuDorama.com ↗
-              </a>
+                Volver
+              </Link>
             </div>
           )}
         </div>
