@@ -201,6 +201,166 @@ app.get('/api/search', async (req, res) => {
   }
 })
 
+/* ──────────────────────────────────────────
+   VIDEO PLAYER — fetch servers for an episode
+   Steps:
+   1. Fetch episode page HTML → extract nonce + post_id
+   2. POST to wp-admin/admin-ajax.php (corvus_get_servers) → get server list
+   3. For each server URL, fetch it (with Referer) and extract the video iframe src
+────────────────────────────────────────── */
+
+async function fetchHtml(url) {
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0',
+      'Referer': 'https://tudorama.com/',
+      'Accept': 'text/html',
+    }
+  })
+  return res.text()
+}
+
+function extractNonce(html) {
+  const m = html.match(/data-nonce="([^"]+)"/)
+  return m ? m[1] : null
+}
+
+async function getServers(postId, nonce, lang = '') {
+  const body = new URLSearchParams()
+  body.append('action', 'corvus_get_servers')
+  body.append('nonce', nonce)
+  body.append('post_id', postId)
+  if (lang) body.append('lang', lang)
+
+  const res = await fetch('https://tudorama.com/wp-admin/admin-ajax.php', {
+    method: 'POST',
+    headers: {
+      'User-Agent': 'Mozilla/5.0',
+      'Referer': 'https://tudorama.com/',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: body.toString(),
+  })
+  return res.json()
+}
+
+async function followRedirect(url) {
+  try {
+    const res = await fetch(url, {
+      redirect: 'manual',
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://tudorama.com/' }
+    })
+    if (res.status >= 300 && res.status < 400) {
+      return res.headers.get('location') || url
+    }
+    return url
+  } catch {
+    return url
+  }
+}
+
+async function extractVideoSrc(playerUrl) {
+  try {
+    const html = await fetchHtml(playerUrl)
+    // Look for iframe.src = "..." pattern (JS assignment)
+    let m = html.match(/iframe\.src\s*=\s*["']([^"']+)["']/)
+    if (m) {
+      const src = m[1]
+      // Follow redirect if it's a shortlink
+      if (src.includes('short.icu') || src.includes('go.') || src.includes('bit.ly')) {
+        return await followRedirect(src)
+      }
+      return src
+    }
+    // Look for <iframe src="..."> 
+    m = html.match(/<iframe[^>]+src=["']([^"'hb][^"']+)["']/)
+    if (m && !m[1].includes('cdn.tudorama.com')) return m[1]
+    // Look for short.icu links in strings
+    m = html.match(/["'](https?:\/\/short\.icu\/[^"']+)["']/)
+    if (m) return await followRedirect(m[1])
+    return null
+  } catch {
+    return null
+  }
+}
+
+/* GET /api/episode-players/:episodePostId
+   Returns list of {name, lang, type, embedUrl} */
+app.get('/api/episode-players/:episodePostId', async (req, res) => {
+  try {
+    const { episodePostId } = req.params
+    const { epLink } = req.query  // pass the episode's link URL
+
+    if (!epLink) return res.status(400).json({ error: 'epLink required' })
+
+    // 1. Fetch episode page to get nonce
+    const html = await fetchHtml(epLink)
+    const nonce = extractNonce(html)
+    if (!nonce) return res.status(500).json({ error: 'Could not extract nonce' })
+
+    // 2. Get servers for all languages
+    const [subServers, latServers] = await Promise.all([
+      getServers(episodePostId, nonce, 'en'),
+      getServers(episodePostId, nonce, 'es'),
+    ])
+
+    // Merge and deduplicate by playerUrl
+    const seen = new Set()
+    const allServers = []
+    for (const s of [...latServers.map(s => ({ ...s, langLabel: 'Latino' })), ...subServers.map(s => ({ ...s, langLabel: 'Subtitulado' }))]) {
+      if (!seen.has(s.url)) {
+        seen.add(s.url)
+        allServers.push(s)
+      }
+    }
+
+    // 3. Extract direct video src from each player
+    const results = await Promise.all(
+      allServers.map(async (s) => {
+        const directSrc = await extractVideoSrc(s.url)
+        // abysscdn.com has X-Frame-Options: sameorigin — won't work cross-origin
+        const embeddable = directSrc && !directSrc.includes('abysscdn.com')
+        return {
+          name: s.name,
+          lang: s.lang,
+          langLabel: s.langLabel,
+          type: s.type,
+          playerUrl: s.url,
+          directSrc,
+          embeddable,  // false for known blocked hosts
+        }
+      })
+    )
+
+    res.json(results.filter(r => r.playerUrl || r.directSrc))
+  } catch (e) {
+    console.error('episode-players error:', e.message)
+    res.status(500).json({ error: e.message })
+  }
+})
+
+/* GET /api/player-proxy?url=...
+   Proxies a cdn.tudorama.com player page (with correct Referer) */
+app.get('/api/player-proxy', async (req, res) => {
+  const { url } = req.query
+  if (!url || !url.startsWith('https://cdn.tudorama.com/')) {
+    return res.status(400).send('Invalid URL')
+  }
+  try {
+    const html = await fetchHtml(url)
+    // Rewrite asset paths to absolute cdn.tudorama.com URLs
+    const rewritten = html
+      .replace(/src="\/assets\//g, 'src="https://cdn.tudorama.com/assets/')
+      .replace(/href="\/assets\//g, 'href="https://cdn.tudorama.com/assets/')
+    res.setHeader('Content-Type', 'text/html; charset=UTF-8')
+    res.setHeader('X-Frame-Options', 'ALLOWALL')
+    res.send(rewritten)
+  } catch (e) {
+    res.status(500).send('Proxy error: ' + e.message)
+  }
+})
+
 app.listen(PORT, () => {
   console.log(`API proxy running on port ${PORT}`)
 })

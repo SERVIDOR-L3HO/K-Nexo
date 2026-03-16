@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import SeriesCard, { SeriesCardSkeleton } from '../components/SeriesCard'
 import { getSerieDetail, getMovieDetail, getEpisodes, getSeries, proxyImg } from '../api/tudorama'
 
 export default function Detail({ type = 'serie' }) {
   const { slug } = useParams()
+  const navigate = useNavigate()
   const [item, setItem] = useState(null)
   const [episodes, setEpisodes] = useState([])
   const [related, setRelated] = useState([])
@@ -91,15 +92,23 @@ export default function Detail({ type = 'serie' }) {
 
             {/* CTA */}
             {episodes.length > 0 && (
-              <a
-                href={episodes[0]?.link}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => {
+                  const ep = episodes[0]
+                  const q = new URLSearchParams({
+                    id: ep.id,
+                    link: ep.link,
+                    title: ep.title,
+                    serieTitle: item.title,
+                    serieSlug: slug,
+                  })
+                  navigate(`/player?${q}`)
+                }}
                 className="inline-flex items-center gap-2 bg-white text-dark-900 font-bold px-6 py-2.5 rounded-xl hover:bg-white/90 transition-all text-sm shadow-lg"
               >
                 <PlayIcon />
                 Ver Episodio 1
-              </a>
+              </button>
             )}
             {isMovie && item.link && (
               <a
@@ -131,30 +140,44 @@ export default function Detail({ type = 'serie' }) {
               <p className="text-white/30 text-sm py-4">No hay episodios disponibles aún.</p>
             ) : (
               <div className="grid gap-2">
-                {episodes.map((ep, i) => (
-                  <a
-                    key={ep.id}
-                    href={ep.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-4 p-4 rounded-xl bg-dark-700 hover:bg-dark-600 border border-white/5 hover:border-white/12 transition-all group"
-                  >
-                    {ep.thumbnail ? (
-                      <img src={proxyImg(ep.thumbnail)} alt="" className="w-20 h-14 rounded-lg object-cover shrink-0" />
-                    ) : (
-                      <div className="w-20 h-14 rounded-lg bg-dark-600 shrink-0 flex items-center justify-center">
-                        <span className="text-white/20 font-bold text-lg">{i + 1}</span>
+                {episodes.map((ep, i) => {
+                  const q = new URLSearchParams({
+                    id: ep.id,
+                    link: ep.link,
+                    title: ep.title,
+                    serieTitle: item.title,
+                    serieSlug: slug,
+                  })
+                  return (
+                    <Link
+                      key={ep.id}
+                      to={`/player?${q}`}
+                      className="flex items-center gap-4 p-4 rounded-xl bg-dark-700 hover:bg-dark-600 border border-white/5 hover:border-white/12 transition-all group"
+                    >
+                      {ep.thumbnail ? (
+                        <div className="relative w-20 h-14 shrink-0">
+                          <img src={proxyImg(ep.thumbnail)} alt="" className="w-full h-full rounded-lg object-cover" />
+                          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 group-hover:bg-black/40 transition-all">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <PlayFill />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-20 h-14 rounded-lg bg-dark-600 shrink-0 flex items-center justify-center">
+                          <span className="text-white/20 font-bold text-lg">{i + 1}</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium line-clamp-1">{ep.title}</p>
+                        {ep.excerpt && <p className="text-white/40 text-xs mt-0.5 line-clamp-1">{ep.excerpt}</p>}
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium line-clamp-1 group-hover:text-white transition-colors">{ep.title}</p>
-                      {ep.excerpt && <p className="text-white/40 text-xs mt-0.5 line-clamp-1">{ep.excerpt}</p>}
-                    </div>
-                    <div className="shrink-0 flex items-center gap-2 text-white/40 group-hover:text-white/70 transition-colors">
-                      <ExternalIcon />
-                    </div>
-                  </a>
-                ))}
+                      <div className="shrink-0 text-white/30 group-hover:text-white/70 transition-colors">
+                        <PlayIcon />
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -208,6 +231,10 @@ function NotFound() {
 function PlayIcon() {
   return <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
 }
-function ExternalIcon() {
-  return <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+function PlayFill() {
+  return (
+    <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center">
+      <svg width="12" height="12" fill="#0d0d1a" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    </div>
+  )
 }

@@ -1,8 +1,9 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import Browse from './pages/Browse'
 import Detail from './pages/Detail'
+import Player from './pages/Player'
 
 function Footer() {
   return (
@@ -28,18 +29,22 @@ function Footer() {
 }
 
 export default function App() {
+  const location = useLocation()
+  const isPlayer = location.pathname === '/player'
+
   return (
     <div className="min-h-screen flex flex-col bg-dark-900">
-      <Navbar />
+      {!isPlayer && <Navbar />}
       <div className="flex-1">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/browse" element={<Browse />} />
           <Route path="/serie/:slug" element={<Detail type="serie" />} />
           <Route path="/pelicula/:slug" element={<Detail type="movie" />} />
+          <Route path="/player" element={<Player />} />
         </Routes>
       </div>
-      <Footer />
+      {!isPlayer && <Footer />}
     </div>
   )
 }

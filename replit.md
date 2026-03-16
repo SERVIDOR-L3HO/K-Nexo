@@ -43,6 +43,25 @@ All content images from `tudorama.com/wp-content/uploads/` are proxied through `
 ## Workflows
 - **Start application**: `npm run dev` — runs both Express (port 3001) and Vite (port 5000) concurrently
 
+## Video Player System
+
+### How it works
+1. User clicks an episode → goes to `/player?id=EP_ID&link=EP_URL&...`
+2. `Player.jsx` calls `/api/episode-players/:postId?epLink=...`
+3. Backend: fetches episode page → extracts WP nonce → calls `corvus_get_servers` AJAX → fetches each cdn.tudorama.com player page → extracts directSrc URL
+4. Frontend embeds the `directSrc` URL in an iframe (or falls back to player-proxy)
+
+### Known video hosts
+- **4meplayer** (`tudorama.4meplayer.pro`) — embeddable ✓
+- **earnvids** (`minochinos.com/embed/`) — embeddable ✓
+- **streamhg** (`hgcloud.to/e/`) — embeddable ✓
+- **abyss** (`abysscdn.com`) — X-Frame-Options: sameorigin, uses player-proxy fallback ⚠
+
+### Key endpoints
+- `GET /api/episode-players/:episodePostId?epLink=URL` — returns `[{name, lang, directSrc, embeddable, playerUrl}]`
+- `GET /api/player-proxy?url=cdn.tudorama.com/player/...` — proxies player HTML with Referer header
+- `GET /api/img?url=...` — image proxy for poster/backdrop images
+
 ## User Preferences
 - Platform name: "TuDorama" with cherry blossom logo
 - Language: Spanish (UI in Spanish)
